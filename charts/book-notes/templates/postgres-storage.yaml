@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: book-notes-postgres
+  labels:
+    {{- include "book-notes.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/name: postgres
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  capacity:
+    storage: {{ .Values.postgres.storage.size }}
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: {{ .Values.postgres.storage.className }}
+  hostPath:
+    path: {{ .Values.postgres.storage.hostPath }}
+    type: DirectoryOrCreate
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - {{ index .Values.postgres.nodeSelector "kubernetes.io/hostname" }}

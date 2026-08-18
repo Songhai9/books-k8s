@@ -104,6 +104,27 @@ Gateway API and Envoy Gateway objects are custom resources, so kubeconform
 skips their schemas. Their live admission and status are verified when the
 bundle is deployed to a cluster.
 
+## Helm chart
+
+The chart under `charts/book-notes` packages the same workloads as the raw
+manifests. Its default values describe the current development cluster while
+keeping image tags, resources, storage, node placement, and Gateway exposure
+configurable.
+
+Validate and render it locally:
+
+```bash
+helm lint charts/book-notes --strict --namespace book-notes
+helm template book-notes charts/book-notes --namespace book-notes
+```
+
+The chart references the existing `book-notes-database` Secret and never
+renders credentials. The CI compares Helm and Kustomize resource identities
+during the migration period so that neither deployment path silently loses a
+workload. Installing the chart into the live cluster will be handled as a
+separate, reviewed migration because the existing resources are not yet owned
+by a Helm release.
+
 ## Security and lifecycle notes
 
 - The committed repository contains no database credentials or kubeconfig.
