@@ -89,6 +89,21 @@ curl http://WORKER_PUBLIC_IP:30080/health
 curl http://WORKER_PUBLIC_IP:30080/ready
 ```
 
+## Continuous integration
+
+The `Kubernetes CI` workflow runs for every pull request, so its final status
+can safely be required by the `main` branch ruleset. It:
+
+1. lints the YAML sources and renders the complete Kustomize bundle;
+2. rejects any Kubernetes Secret accidentally included in that bundle;
+3. passes the rendered bundle as a GitHub Actions artifact to isolated jobs;
+4. validates built-in Kubernetes resources against `v1.36` schemas; and
+5. checks workload security and operational practices with kube-linter.
+
+Gateway API and Envoy Gateway objects are custom resources, so kubeconform
+skips their schemas. Their live admission and status are verified when the
+bundle is deployed to a cluster.
+
 ## Security and lifecycle notes
 
 - The committed repository contains no database credentials or kubeconfig.

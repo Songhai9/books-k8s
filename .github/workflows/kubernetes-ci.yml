@@ -1,0 +1,159 @@
+name: Kubernetes CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kubernetes-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  KUSTOMIZE_VERSION: "5.8.1"
+  KUBECONFORM_VERSION: "0.8.0"
+  KUBE_LINTER_VERSION: "0.8.3"
+
+jobs:
+  render:
+    name: Lint and render manifests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Install yamllint
+        run: python -m pip install --disable-pip-version-check "yamllint==1.38.0"
+
+      - name: Install Kustomize
+        shell: bash
+        run: |
+          archive="kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+          url="https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/${archive}"
+          curl --fail --location --silent --show-error "$url" --output "${RUNNER_TEMP}/${archive}"
+          checksum="029a7f0f4e1932c52a0476cf02a0fd855c0bb85694b82c338fc648dcb53a819d"
+          echo "${checksum}  ${RUNNER_TEMP}/${archive}" | sha256sum --check
+          tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}"
+          echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
+
+      - name: Lint YAML sources
+        run: yamllint --config-file .yamllint.yml .
+
+      - name: Build the Kustomize bundle
+        run: kustomize build manifests > "${RUNNER_TEMP}/rendered.yaml"
+
+      - name: Ensure no Secret is rendered
+        shell: bash
+        run: |
+          rendered_file="${RUNNER_TEMP}/rendered.yaml"
+          if grep --extended-regexp --quiet '^kind:[[:space:]]+Secret$' "${rendered_file}"; then
+            echo "A Kubernetes Secret was found in the rendered bundle."
+            exit 1
+          fi
+
+      - name: Upload the rendered manifests
+        uses: actions/upload-artifact@v7
+        with:
+          name: rendered-manifests
+          path: ${{ runner.temp }}/rendered.yaml
+          if-no-files-found: error
+          retention-days: 1
+
+  schema:
+    name: Validate Kubernetes schemas
+    needs: render
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Download the rendered manifests
+        uses: actions/download-artifact@v8
+        with:
+          name: rendered-manifests
+          path: ${{ runner.temp }}/rendered
+
+      - name: Install kubeconform
+        shell: bash
+        run: |
+          archive="kubeconform-linux-amd64.tar.gz"
+          url="https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/${archive}"
+          curl --fail --location --silent --show-error "$url" --output "${RUNNER_TEMP}/${archive}"
+          checksum="9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883"
+          echo "${checksum}  ${RUNNER_TEMP}/${archive}" | sha256sum --check
+          tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}"
+          echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
+
+      - name: Validate built-in Kubernetes resources
+        run: |
+          kubeconform \
+            -strict \
+            -summary \
+            -ignore-missing-schemas \
+            -kubernetes-version 1.36.0 \
+            "${RUNNER_TEMP}/rendered/rendered.yaml"
+
+  policy:
+    name: Lint workload security
+    needs: render
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Download the rendered manifests
+        uses: actions/download-artifact@v8
+        with:
+          name: rendered-manifests
+          path: ${{ runner.temp }}/rendered
+
+      - name: Install kube-linter
+        shell: bash
+        run: |
+          archive="kube-linter-linux.tar.gz"
+          url="https://github.com/stackrox/kube-linter/releases/download/v${KUBE_LINTER_VERSION}/${archive}"
+          curl --fail --location --silent --show-error "$url" --output "${RUNNER_TEMP}/${archive}"
+          checksum="1a6d8419b11971372971fdbc22682b684ebfb7cf1c39591662d1b6ca736c41df"
+          echo "${checksum}  ${RUNNER_TEMP}/${archive}" | sha256sum --check
+          tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}"
+          echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
+
+      - name: Check workload security policies
+        run: >-
+          kube-linter lint
+          --config .kube-linter.yaml
+          "${RUNNER_TEMP}/rendered/rendered.yaml"
+
+  required:
+    name: Required Kubernetes checks
+    if: always()
+    needs:
+      - render
+      - schema
+      - policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Verify all validation jobs passed
+        env:
+          RENDER_RESULT: ${{ needs.render.result }}
+          SCHEMA_RESULT: ${{ needs.schema.result }}
+          POLICY_RESULT: ${{ needs.policy.result }}
+        run: |
+          test "${RENDER_RESULT}" = "success"
+          test "${SCHEMA_RESULT}" = "success"
+          test "${POLICY_RESULT}" = "success"
