@@ -1,0 +1,71 @@
+app:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/songhai9/books
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  port: 3000
+  existingDatabaseSecret: book-notes-database
+  nodeSelector:
+    kubernetes.io/hostname: books-dev-k8s-worker
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  config:
+    nodeEnv: production
+    databaseHost: book-notes-postgres
+    databasePort: "5432"
+    databaseName: book_notes
+    databaseUser: book_notes
+    databaseSsl: "false"
+
+postgres:
+  image:
+    repository: postgres
+    tag: "17.10-alpine3.23"
+    pullPolicy: IfNotPresent
+  port: 5432
+  nodeSelector:
+    kubernetes.io/hostname: books-dev-k8s-worker
+  initContainer:
+    image: busybox:1.37
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+      limits:
+        cpu: 100m
+        memory: 32Mi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  storage:
+    size: 5Gi
+    className: book-notes-local
+    hostPath: /var/lib/book-notes/postgres
+
+gateway:
+  className: book-notes-envoy
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+  envoyProxy:
+    name: book-notes-nodeport
+    namespace: envoy-gateway-system
+  listenerPort: 80
+  nodePort: 30080
+  nodeSelector:
+    kubernetes.io/hostname: books-dev-k8s-worker
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi

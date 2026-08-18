@@ -1,0 +1,12 @@
+The Book Notes chart has been rendered for namespace {{ .Release.Namespace }}.
+
+The chart deliberately does not create the database Secret. Ensure it exists:
+
+  kubectl --namespace {{ .Release.Namespace }} create secret generic \
+    {{ .Values.app.existingDatabaseSecret }} \
+    --from-literal=POSTGRES_PASSWORD="$(openssl rand -base64 32)"
+
+Then verify the workloads and Gateway API resources:
+
+  kubectl --namespace {{ .Release.Namespace }} get pods
+  kubectl --namespace {{ .Release.Namespace }} get gateway,httproute
