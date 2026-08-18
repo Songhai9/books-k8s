@@ -21,6 +21,7 @@ the future production-style replacement.
 ## Prerequisites
 
 - Kubernetes `v1.36.x` and a compatible `kubectl` client
+- Helm `v4.2.4`
 - Envoy Gateway `v1.8.3`
 - Gateway API CRDs bundled with Envoy Gateway `v1.8.3`
 - A firewall rule allowing TCP `30080` to the worker
@@ -59,18 +60,24 @@ kubectl --namespace book-notes create secret generic book-notes-database \
 `manifests/base/secret.example.yaml` only documents the expected resource and
 is deliberately excluded from the Kustomize deployment.
 
-## Deploy
+## Deploy with Helm
 
-Render locally before applying:
+The development cluster is managed by the `book-notes` Helm release. Render
+and validate changes before upgrading it:
 
 ```bash
-kubectl kustomize manifests
-kubectl apply --server-side --kustomize manifests
+helm lint charts/book-notes --strict --namespace book-notes
+helm template book-notes charts/book-notes --namespace book-notes
+helm upgrade --install book-notes charts/book-notes \
+  --namespace book-notes \
+  --server-side=true \
+  --wait=watcher \
+  --timeout 10m
 ```
 
-If operating from the control plane, copy the `manifests/` directory to the
-host first and run the same commands there. The kubeconfig installed by Ansible
-under `/home/ubuntu/.kube/config` is already selected for the Ubuntu user.
+The one-time adoption of the resources previously managed by Kustomize is
+documented in [`docs/helm-migration.md`](docs/helm-migration.md). Do not repeat
+the ownership migration flags during normal upgrades.
 
 Wait for both workloads and inspect Gateway API status:
 
@@ -94,11 +101,12 @@ curl http://WORKER_PUBLIC_IP:30080/ready
 The `Kubernetes CI` workflow runs for every pull request, so its final status
 can safely be required by the `main` branch ruleset. It:
 
-1. lints the YAML sources and renders the complete Kustomize bundle;
-2. rejects any Kubernetes Secret accidentally included in that bundle;
-3. passes the rendered bundle as a GitHub Actions artifact to isolated jobs;
-4. validates built-in Kubernetes resources against `v1.36` schemas; and
-5. checks workload security and operational practices with kube-linter.
+1. lints the YAML sources and renders both Kustomize and Helm bundles;
+2. verifies that both renderers produce the same workload resources;
+3. rejects any Kubernetes Secret accidentally included in either bundle;
+4. passes both bundles as a GitHub Actions artifact to isolated jobs;
+5. validates built-in Kubernetes resources against `v1.36` schemas; and
+6. checks workload security and operational practices with kube-linter.
 
 Gateway API and Envoy Gateway objects are custom resources, so kubeconform
 skips their schemas. Their live admission and status are verified when the
@@ -119,11 +127,9 @@ helm template book-notes charts/book-notes --namespace book-notes
 ```
 
 The chart references the existing `book-notes-database` Secret and never
-renders credentials. The CI compares Helm and Kustomize resource identities
-during the migration period so that neither deployment path silently loses a
-workload. Installing the chart into the live cluster will be handled as a
-separate, reviewed migration because the existing resources are not yet owned
-by a Helm release.
+renders credentials. The live resources are owned by Helm release
+`book-notes`. Kustomize remains temporarily in the repository as an independent
+rendering reference while the deployment pipeline is built.
 
 ## Security and lifecycle notes
 
