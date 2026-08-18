@@ -1,0 +1,59 @@
+name: Deploy to Kubernetes
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Existing ghcr.io/songhai9/books image tag to deploy
+        required: true
+        default: "1.0.0"
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: book-notes-development-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy Book Notes with Helm
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out the deployment repository
+        uses: actions/checkout@v7
+
+      - name: Validate deployment inputs and repository variables
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          CD_ROLE_ARN: ${{ vars.AWS_KUBERNETES_CD_ROLE_ARN }}
+          CONTROL_PLANE_INSTANCE_ID: ${{ vars.KUBERNETES_CONTROL_PLANE_INSTANCE_ID }}
+        run: |
+          test -n "${CD_ROLE_ARN}"
+          test -n "${CONTROL_PLANE_INSTANCE_ID}"
+          [[ "${IMAGE_TAG}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]
+          [[ "${CONTROL_PLANE_INSTANCE_ID}" =~ ^i-[0-9a-f]{8,17}$ ]]
+
+      - name: Obtain temporary AWS credentials through GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          role-to-assume: ${{ vars.AWS_KUBERNETES_CD_ROLE_ARN }}
+          aws-region: eu-west-3
+          allowed-account-ids: "429502077256"
+          role-session-name: books-k8s-${{ github.run_id }}
+
+      - name: Deploy the exact commit through Systems Manager
+        env:
+          AWS_REGION: eu-west-3
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          CONTROL_PLANE_INSTANCE_ID: ${{ vars.KUBERNETES_CONTROL_PLANE_INSTANCE_ID }}
+        run: >-
+          scripts/run-ssm-deployment.sh
+          "${CONTROL_PLANE_INSTANCE_ID}"
+          "${GITHUB_SHA}"
+          "${IMAGE_TAG}"

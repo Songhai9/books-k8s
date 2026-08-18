@@ -112,6 +112,23 @@ Gateway API and Envoy Gateway objects are custom resources, so kubeconform
 skips their schemas. Their live admission and status are verified when the
 bundle is deployed to a cluster.
 
+## Continuous deployment
+
+The `Deploy to Kubernetes` workflow performs a controlled manual deployment.
+It exchanges GitHub's OIDC token for short-lived AWS credentials, sends an SSM
+Run Command to the kubeadm control plane, checks out the exact workflow commit,
+and runs the Helm upgrade from inside the cluster network.
+
+The workflow requires two non-secret repository variables:
+
+- `AWS_KUBERNETES_CD_ROLE_ARN`, output by `books-infra` Terraform; and
+- `KUBERNETES_CONTROL_PLANE_INSTANCE_ID`, also output by Terraform.
+
+The deployment waits for both workloads, verifies Gateway API conditions, and
+smoke-tests `/health`, `/ready`, and the homepage. It is initially available
+only through `workflow_dispatch` on `main`; automatic release deployments will
+be enabled after the manual path has been proven.
+
 ## Helm chart
 
 The chart under `charts/book-notes` packages the same workloads as the raw
