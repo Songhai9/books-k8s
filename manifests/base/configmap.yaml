@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: book-notes-config
+  namespace: book-notes
+  labels:
+    app.kubernetes.io/part-of: book-notes
+data:
+  NODE_ENV: production
+  PORT: "3000"
+  DATABASE_HOST: book-notes-postgres
+  DATABASE_PORT: "5432"
+  DATABASE_NAME: book_notes
+  DATABASE_USER: book_notes
+  DATABASE_SSL: "false"

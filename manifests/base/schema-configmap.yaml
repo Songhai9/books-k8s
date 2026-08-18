@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: book-notes-schema
+  namespace: book-notes
+  labels:
+    app.kubernetes.io/part-of: book-notes
+  annotations:
+    app.kubernetes.io/source-version: v1.0.0
+data:
+  schema.sql: |
+    CREATE TABLE IF NOT EXISTS readers (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(80) NOT NULL UNIQUE,
+      color VARCHAR(7) NOT NULL DEFAULT '#7b4a2d'
+        CHECK (color ~ '^#[0-9A-Fa-f]{6}$'),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS books (
+      id SERIAL PRIMARY KEY,
+      title VARCHAR(200) NOT NULL,
+      author VARCHAR(150) NOT NULL,
+      isbn VARCHAR(20) UNIQUE,
+      cover_url TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS reader_books (
+      id SERIAL PRIMARY KEY,
+      reader_id INTEGER NOT NULL REFERENCES readers(id) ON DELETE CASCADE,
+      book_id INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+      rating SMALLINT NOT NULL CHECK (rating BETWEEN 1 AND 10),
+      date_read DATE NOT NULL,
+      notes TEXT NOT NULL CHECK (LENGTH(TRIM(notes)) > 0),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (reader_id, book_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS reader_books_rating_idx
+      ON reader_books (reader_id, rating DESC);
+
+    CREATE INDEX IF NOT EXISTS reader_books_date_read_idx
+      ON reader_books (reader_id, date_read DESC);
+
+    CREATE INDEX IF NOT EXISTS books_title_idx
+      ON books (title ASC);

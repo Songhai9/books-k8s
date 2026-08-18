@@ -1,0 +1,9 @@
+# Local credentials and generated client configuration
+*.secret.yaml
+*.kubeconfig
+.env
+
+# Local tooling
+.DS_Store
+.idea/
+.vscode/

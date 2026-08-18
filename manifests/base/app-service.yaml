@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: book-notes
+  namespace: book-notes
+  labels:
+    app.kubernetes.io/name: book-notes
+    app.kubernetes.io/part-of: book-notes
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: book-notes
+    app.kubernetes.io/part-of: book-notes
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http

@@ -1,0 +1,16 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: book-notes
+  namespace: book-notes
+  labels:
+    app.kubernetes.io/part-of: book-notes
+spec:
+  gatewayClassName: book-notes-envoy
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same
