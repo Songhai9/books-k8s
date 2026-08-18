@@ -7,8 +7,6 @@ metadata:
     {{- include "book-notes.commonLabels" . | nindent 4 }}
     app.kubernetes.io/name: postgres
   annotations:
-    ignore-check.kube-linter.io/no-read-only-root-fs: >-
-      The official PostgreSQL image needs writable runtime paths in addition to the data volume.
     ignore-check.kube-linter.io/run-as-non-root: >-
       The prepare-data-directory init container must run as root to chown the mounted hostPath.
 spec:
@@ -61,6 +59,7 @@ spec:
             runAsUser: 70
             runAsGroup: 70
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
@@ -112,10 +111,20 @@ spec:
               mountPath: /docker-entrypoint-initdb.d/001-schema.sql
               subPath: schema.sql
               readOnly: true
+            - name: postgres-runtime
+              mountPath: /var/run/postgresql
+            - name: postgres-tmp
+              mountPath: /tmp
       volumes:
         - name: schema
           configMap:
             name: book-notes-schema
+        - name: postgres-runtime
+          emptyDir: {}
+        - name: postgres-tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 64Mi
   volumeClaimTemplates:
     - metadata:
         name: data
