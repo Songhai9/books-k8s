@@ -4,6 +4,18 @@ Kubernetes manifests for the Book Notes application. The repository deploys
 the application and PostgreSQL to the kubeadm cluster provisioned by
 `books-infra`, then exposes HTTP through Envoy Gateway and Gateway API.
 
+## Security checks
+
+The security workflow scans the complete Git history for leaked secrets and
+uses Trivy to block high or critical Kubernetes and Helm misconfigurations. It
+runs on pull requests, pushes to `main`, every Monday, and manual dispatches.
+
+This complements the regular Kubernetes CI: schema validation proves that
+resources are structurally valid, kube-linter applies workload policies, and
+Trivy adds an independent security-rule database. PostgreSQL runs with a
+read-only root filesystem; only its data, runtime-socket, and temporary paths
+are writable volumes.
+
 ## Architecture
 
 - Namespace `book-notes` isolates application resources.
