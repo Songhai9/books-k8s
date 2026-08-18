@@ -46,6 +46,7 @@ spec:
                 - ALL
               add:
                 - CHOWN
+                - DAC_OVERRIDE
           resources:
             {{- toYaml .Values.postgres.initContainer.resources | nindent 12 }}
           volumeMounts:
