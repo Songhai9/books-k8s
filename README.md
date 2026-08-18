@@ -114,7 +114,8 @@ bundle is deployed to a cluster.
 
 ## Continuous deployment
 
-The `Deploy to Kubernetes` workflow performs a controlled manual deployment.
+The `Deploy to Kubernetes` workflow performs a controlled manual deployment
+and also exposes the same job as a reusable workflow for application releases.
 It exchanges GitHub's OIDC token for short-lived AWS credentials, sends an SSM
 Run Command to the kubeadm control plane, checks out the exact workflow commit,
 and runs the Helm upgrade from inside the cluster network.
@@ -126,8 +127,10 @@ The workflow requires two non-secret repository variables:
 
 The deployment waits for both workloads, verifies Gateway API conditions, and
 smoke-tests `/health`, `/ready`, and the homepage. It is initially available
-only through `workflow_dispatch` on `main`; automatic release deployments will
-be enabled after the manual path has been proven.
+through `workflow_dispatch` on `main`. A successfully published SemVer image in
+`Songhai9/books` calls the reusable workflow with the exact image tag. The AWS
+trust policy independently rejects branches, pull requests, and non-version
+tags from the application repository.
 
 ## Helm chart
 
